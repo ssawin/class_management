@@ -13,7 +13,7 @@ def is_comment(row):
         return True
     else:
         return False
- 
+ """this is a new, useless comment
 def is_immediate(row):
     """Checks if a line of the csv file is an immediate preamble line"""
     return row[1].strip()=='=='
