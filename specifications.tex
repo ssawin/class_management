@@ -1,0 +1,233 @@
+\documentclass{article}
+
+
+\begin{document}
+
+{ \begin{centering}\Large
+Specifications For the Class Management Tools \\ Contained in manage.pm
+\end{centering}
+}
+
+The basic script takes as input a comma-separated text file.  For each
+row it performs various specified actions, including processing the
+data, teXing and moving files, etc and produces a list of dictionaries.  With the
+resulting list of dictionaries it then outputs various sorted sublists, in
+the form of individual files or emails, or a single email or file in
+html, TeX, csv, or other format.  
+
+\textbf{Input File:} The input file is a text file, separated by
+returns into lines.  Line beginning with the \textbf{comment
+  character} \% are treated as comments and ignored.  Apart from that
+the rows are broken up entries separated by a comma surrounded by
+arbitrary white space (commas inside  double quotes do not
+count).  The collection of rows consist of one or more initial rows
+called the \textbf{preamble}, each of which has ``='' or ``=='' as the second entry,
+a single row called the \textbf{header row} which is the first row
+without the ``='' in the second entry, and then some number of rows
+called \textbf{record rows}.
+
+The first entry of each preamble row and each entry of the header row
+is a \textbf{header entry} consisting of a sequence of letters,
+numerals and '\_','-', representing the \textbf{name} of the header
+(names beginning with ``CSV-'' are used as system variables and are UAYOR), followed by an
+optional special character representing the \textbf{input type} of
+the header (``;'' for  LIST, ``:'' for DICTIONARY,  ``@'' for DATE,  ``!'' for CSVFILE) , followed by $0$ or
+more instances of a period followed  by a name, each
+representing an \textbf{action}.  The third entry in each preamble row
+and all entries in each record row are \textbf{value entries}.  These
+have an input type determined by the header intry in its row for
+preamble rows and in its column for record entries.  No entry type is
+text or numbers, the LIST input type is of the form
+\{value\};\{value\};$\cdots$;\{value\}, the DICTIONARY input type is of the form
+\{key\}:\{value\};$\cdots$;\{key\}:\{value\}, and the DATE input type has
+various acceptable corresponding to different ways of representing
+date times.
+\section*{Special Characters and Strings}
+
+In this document I will use the standard symbols for each of these
+special meanings, but lets set themn at the beginning of the program
+so that they can be changed at will
+\begin{itemize}
+  \item comment character \%
+  \item assignment sting =
+  \item immediate assignment string ==
+  \item quote character \verb|"|
+  \item list symbol ;
+  \item dictionary symbol :
+  \item date symbol @
+  \item csv symbol !
+  \item escape character \verb|\|
+  \item begin evaluate \#
+  \item end evaluate \#
+  \item action character .
+\end{itemize}
+\section*{Data Types}
+
+\begin{itemize}
+\item \textbf{header} - a dictionary with keys \emph{name} pointing to
+  text, \emph{input-type} pointing to text, \emph{error} pointing to a
+  number, \emph{actions} pointing to a
+  list with text entries, and possible other key values.  
+\item \textbf{field} - a dictionary with keys \emph{header} pointing to a
+  header object, \emph{value} pointing to text, \emph{errors} pointing
+  to a list, \emph{immediate} pointing to a Boolean and possibly other key value pairs.  
+\item \textbf{headers} - a list of header objects.
+\item \textbf{record} - a list of record objects.
+\item \textbf{records} - a list of records objects.  
+\end{itemize}
+
+\section*{Procedures}
+ 
+\begin{enumerate}
+\item \textbf{csv-output} -- takes a csv file as input, processes it,
+  converts it to data and then outputs the data to a variety of output
+  files and formats.  Specifically runs \textbf{build-data} on it with
+  empty \emph{preamble-record} and \emph{preamble-datum}, runs
+  \textbf{build-views} on the result, and for each view in the result
+  builds an output according to the instructions in the dictionary \emph{view-globals}[\_output\_].
+\item \textbf{build-views} -- takes a list of dictionaries called \emph{data}
+  and a dictionary called \emph{globals} and outputs a list, each
+  entry of which contains a list \emph{view-data} and a dictionary
+  \emph{view-globals}.  For each dictionary in the list 
+  \emph{globals}[\_views\_] it  trims \emph{data} by taking only rows
+  with a given field set to True/nonzero, sorts them according to the
+  instructions, and makes the result \emph{view-data}, then
+  adds/replaces certain fields in \emph{globals} and calls the result \emph{view-globals}.
+\item \textbf{build-data} -- takes a csv file, a record called
+  \emph{preamble-record} and a dictionary called \emph{preamble-datum} and
+  outputs a list of dictionaries, called  \emph{data} and a dictionary
+  called \emph{globals}.
+\item \textbf{is-comment} -- takes as input a line and returns $1$ if
+it is a comment and $0$ otherwise.
+\item \textbf{is-preamble} -- takes as input a line which is not a
+  comment and returns $1$ if
+it is a preamble line and $0$ otherwise.
+\item \textbf{entry-to-header} -- takes as input text and returns a
+  header (error set to $1$ if there is a syntax error)
+\item \textbf{line-to-field}  -- takes as input one line from the
+  preamble and returns a field
+\item \textbf{entry-to-value} -- takes as input a field, a dictionary
+  \emph{datum} and a record \emph{record}, as well as a flag for
+  whether you are in the preamble.  
+  \begin{itemize}
+    \item if INPUT-TYPE is blank or CSV, all pieces of the entry
+      string not inside quotes which are surrounded by \# get each ;
+      repaced by a , and then are
+      interpreted with PYTHON's EVAL command with \emph{datum} as
+      globals.  If the result is a string and there are other pieces,
+      it treats them as strings, concatenates and returns as a
+      string.  If it is the whole entry returns the value as whatever
+      type it is.  Otherwise returns a syntax error.
+    \item if INPUT-TYPE is CSV, takes the string from the previous
+      point, interprets as the name of a CSV file, calls
+      \textbf{csv-process} with \emph{datum} and, if we are not in the
+      preamble the \emph{record}.  The resulting list is the value.
+    \item if the INPUT-TYPE is LIST, separates into individual strings
+      by instances of ; which are not inside quotes or \# constructs.
+      Each piece is then interpreted as above for a blank INPUT-TYPE,
+      and then the value is a list of the results.
+    \item if INPUT-TYPE is DICTIONARY, separates into individual
+      strings by instances of ; which are not inside quotes or \#
+      construct, interprets the contents before : as a name, and
+      interprets the stuff after the : as a a blank INPUT-TYPE and
+      makes the result that the value of a name value pair added to
+      the dictionary which is returned as the final value.
+\item if INPUT-TYPE is DATE, separates into individual strings by
+  instances of + and - which are not inside quotes or \# constructs.
+  If the first entry is a \# construct it is interpreted as above and
+  returns a syntac error unless it is A PYTHON date-time object, if fits one of a standard set of date-time
+  expression formats it is converted to a PYTHON date-time object, and
+  if it is blank put NOW as a date-time object.  Each additional piece
+  must look like a blank, a number, or a \# construct that evaluates
+  to a number followed by one of 'cdhmsw' or their upper case versions
+  or it is a syntac error.  Ignore c for now.  in each case if it is a
+  number you add or subtract that many days, hours, minutes, seconds
+  or weeks to the initial date time object.  If it is blank you round
+  up or down acording to + or - to the end of that day, hour minute,
+  second or week. Finally the value is set to a dictionary with 'dt'
+  aassigned the date-time object, 'is-past' set to $1$ if it is past,
+  'is-future' set to  $1$ if it is future, and if 
+  'CSV-dateformats' is set to a dictionary in \emph{datum} take each
+  key-value pair, interpret the value as a PYTHON date-time formatting
+  string, apply it to the date-time object and assign the key and that
+  reuslt as a key-value pair.
+  \end{itemize}
+\item \textbf{interpret-field} -- takes as input a field, a dictionary
+  \emph{datum} and a record \emph{record}, as well as a flag for
+  whether you are in the preamble.  First it sends this to
+  \textbf{entry-to-value} to convert the entry into an object.
+  Then it applies in sequence each action in the action list to this
+  object (with \emph{datum} as an additional parameter).  When
+  these are completed it adds \emph{header}.\emph{name} and the
+  resulting object as a key-value pair to \emph{datum}. 
+\item \textbf{preamble-to-record} -- takes as input the csv file, the
+  \emph{preamble-datum} and the \emph{preamble-record}.  for each line
+  of the preamble runs \textbf{entry-to-header}, if the assignment is
+  not immediate it creates a field with that header and the third
+  entry as value (if the third entry is blank, looks in
+  \emph{preamble-record} for a field with the same name and uses its
+  value instead.  If the assignment is immediate runs \textbf{interpret-field}  
+\item \textbf{process-entry} -- takes a field, a dictionary
+  (\emph{datum}), and a record (\emph{preamble-record}), interprets \emph{value} according to
+  \emph{input-type}  and interpolates with
+  \emph{datum}, and returns the data structure indicated by
+  \emph{input-type}.  Modifies the field to indicate error information
+  and the type of the result.  If \emph{value} is empty, searches
+  \emph{preamble-record} for a field with the same \emph{name}, and
+  substitutes its \emph{value} in and removes the field from the record before doing anything else.  
+\item \textbf{process-field} -- takes a field and a hash
+  (\emph{datum}) and returns the hash modified.  Runs \textbf{process-entry}
+  and each of the actions (if \emph{datum.dry} is set to true then it
+  does not do the actions which are not dry).
+\item \textbf{process-preamble} -- runs \textbf{line-to-field} on each
+  line for which \textbf{is-comment} is false while
+  \textbf{is-preamble} is true.  If the field has \emph{immediate}
+  set, runs \textbf{process-field} on it with \emph{preamble-datum},
+  otherwise it appends the field to \emph{preamble-record}.  
+\item \textbf{process-headers} -- reads the header line, runs
+  \textbf{entry-to-header} on each entry, and appends it to a list of
+  headers \emph{headers} which it returns.
+\item \textbf{process-record} -- takes as input a line of the file, a
+  hash \emph{preamble-datum} and a record \emph{preamble-record} and returns
+  a hash \emph{datum}
+\end{enumerate}
+
+
+\section*{Syntax of the CSV File}
+
+Below is how to check if the syntax of the CSV file is correct.  Terms
+are used below for regular expression matching  that above refer
+to the data structures they turn into.  
+\begin{itemize}
+\item \textbf{whitespace} -- space and tab
+\item \textbf{name} -- *[a-z,A-Z,0-9,\_,-]
+\item \textbf{full name} -- \{name\} or \{name\} followed by one of the
+  following input-type characters !@;:
+\item \textbf{quote} -- ``*.''
+\item \textbf{field} -- \{whitespace\}\{full
+  name\}*(\verb|\|.\{name\})\{whitespace\}
+\item \textbf{python-code} -- the character \# surrounding valid
+  python code that contains no unescaped \# chracters.
+\item \textbf{text entry} -- whitespace surrounding an arbitrary
+  sequence of {quote}s, {python-code} and text strings which contain
+  no unescaped ,\verb|''|\# characters.  If inside a list or
+  dictionary entry text must also contain no unescaped ;
+\item \textbf{list entry} -- \{whitespace\}\{ python-code\}\{whitespace\}
+  or \{whitespace\}\{text entry\}*(;\{text entry\})
+\item \textbf{dictionary entry} -- \{whitespace\}\{python-code\}\{whitespace\}
+  or \{whitespace\}\{name\}:\{text entry\}*(;\{name\}:\{text entry\})
+\item \textbf{date} -- \{whitespace\} \{python-code\}\{whitespace\}
+  or one of the date formats permitted
+\item \textbf{date entry} -- \{date\} *((+,-)\{whitespace\}(\{number\},\{python-code\})\{whitespace\}(s,S,m,M,d,D,w,W)\{whitespace\})
+\item \textbf{entry} -- (\{text entry\},\{list entry\},\{dictionary entry\},\{date entry\})
+\item \textbf{comment line} -- \{linestart\}\{whitespace\}\#.*\{lineend\}
+\item \textbf{preamble line} -- 
+  \{linestart\}\{field\},\{whitespace\}(=,==)\{whitespace\},\{entry\}*(,\{whitespace\})\{lineend\}
+\item \textbf{header line} \{linestart\}\{field\}*(,\{field\})*(,\{whitespace\})\{lineend\}
+\item \textbf{record line} \{linestart\}
+  \{entry\}*(,\{entry\})*(,\{whitespace\})\{lineend\}
+\item \textbf{CSV text} -- *(\{ preamble line\},\{comment line\})\{header
+  line\}*(\{record line\},\{comment line\})
+\end{itemize}
+
+\end{document}
